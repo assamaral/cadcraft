@@ -25,6 +25,27 @@ fn square(size: f64) -> Vec<PolyVertex> {
 }
 
 #[test]
+fn line_extrusion_roundtrips_with_world_endpoints() {
+    // A LINE's endpoints are world coordinates whatever its extrusion, which only directs its
+    // thickness; a mirrored normal (0, 0, -1) must come back from DXF and DWG (#2241).
+    let mut d = Drawing::new_metric();
+    let common = Common { extrusion: Vec3::new(0.0, 0.0, -1.0), ..Common::default() };
+    let line = Line { a: Vec3::new(1.0, 2.0, 0.0), b: Vec3::new(11.0, 7.0, 0.0) };
+    let h = d.add(&Space::Model, common, EntityKind::Line(line.clone())).expect("add");
+    let dxf = write_dxf(&d);
+    assert!(dxf.contains("230\r\n-1.0\r\n"), "the extrusion is written");
+    let back = roundtrip(&d);
+    let e = get(&back, h);
+    assert_eq!(e.common.extrusion, Vec3::new(0.0, 0.0, -1.0));
+    assert_eq!(e.kind, EntityKind::Line(line.clone()));
+    let dwg = cadcraft_io::write(&d, "x.dwg").expect("dwg");
+    let back = cadcraft_io::read(&dwg, "x.dwg").expect("reopen dwg");
+    let Some(e) = back.model.iter().find(|e| matches!(e.kind, EntityKind::Line(_))) else { panic!("no line") };
+    assert_eq!(e.common.extrusion, Vec3::new(0.0, 0.0, -1.0), "through DWG");
+    assert_eq!(e.kind, EntityKind::Line(line));
+}
+
+#[test]
 fn thickness_roundtrips_on_every_entity_that_has_one() {
     let mut d = Drawing::new_metric();
     let p = |x, y| Vec3::new(x, y, 0.0);
