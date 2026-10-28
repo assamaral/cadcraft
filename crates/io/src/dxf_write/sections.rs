@@ -1117,7 +1117,10 @@ pub(super) fn tags_for(d: &Drawing, version: Version, target: Version) -> Vec<Ta
     }
     crate::dxf_raw::finish(&mut w.t, d);
     crate::dxf_raw::data_store(&mut w.t, d, target >= Version::R2013);
-    add_class_instance_counts(&mut w.t);
+    // Group 91 is an R2004 field: ZWCAD 2025 discards a DXF 2000 whose CLASS records carry it (#2333).
+    if target >= Version::R2004 {
+        add_class_instance_counts(&mut w.t);
+    }
     mark_xrefs(&mut w.t, d);
     w.t
 }
