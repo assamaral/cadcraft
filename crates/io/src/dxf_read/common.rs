@@ -43,28 +43,36 @@ fn transparency_440(v: i64) -> Transparency {
     }
 }
 
+/// The groups of the AcDbEntity subclass: the record up to the entity's own subclass marker (all
+/// of it in files without markers). Later groups reuse the codes: an MTEXT's column width is 48.
+fn entity_groups(tags: &[Tag]) -> &[Tag] {
+    let end = tags.iter().position(|t| t.code == 100 && t.str() != "AcDbEntity").unwrap_or(tags.len());
+    tags.get(..end).unwrap_or(tags)
+}
+
 pub(super) fn common(t: &T) -> Common {
-    let mut c = Common { layer: t.s(8).unwrap_or_else(|| "0".into()), linetype: t.s(6).unwrap_or_else(|| "ByLayer".into()), ..Common::default() };
-    if let Some(v) = t.i(62) {
+    let e = T(entity_groups(t.0));
+    let mut c = Common { layer: e.s(8).unwrap_or_else(|| "0".into()), linetype: e.s(6).unwrap_or_else(|| "ByLayer".into()), ..Common::default() };
+    if let Some(v) = e.i(62) {
         c.color = Color::from_aci(v as i16);
         if v < 0 {
             c.color = Color::ByLayer;
             c.visible = true;
         }
     }
-    if let Some(tc) = t.i(420) {
+    if let Some(tc) = e.i(420) {
         c.color = Color::True(Rgb::from_u32(tc as u32));
     }
-    if let Some(lw) = t.i(370) {
+    if let Some(lw) = e.i(370) {
         c.lineweight = Lineweight::from_dxf(lw as i16);
     }
-    if let Some(s) = t.f(48) {
+    if let Some(s) = e.f(48) {
         c.ltscale = if s > 0.0 { s } else { 1.0 };
     }
-    if t.i(60) == Some(1) {
+    if e.i(60) == Some(1) {
         c.visible = false;
     }
-    if let Some(v) = t.i(440) {
+    if let Some(v) = e.i(440) {
         c.transparency = transparency_440(v);
     }
     c.thickness = t.fd(39, 0.0);

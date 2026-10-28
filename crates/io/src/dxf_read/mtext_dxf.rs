@@ -83,7 +83,8 @@ pub(crate) fn read_columns(tags: &[Tag]) -> Option<(MTextColumns, f64)> {
     };
     let cols = tags.get(start..).unwrap_or_default();
     let first = |code: i32| cols.iter().find(|t| t.code == code);
-    let heights: Vec<f64> = cols.iter().filter(|t| t.code == 50).take(MAX_COLUMNS).map(|t| finite(t.f64()).max(0.0)).collect();
+    // The first 50 is the number of heights that follow.
+    let heights: Vec<f64> = cols.iter().filter(|t| t.code == 50).skip(1).take(MAX_COLUMNS).map(|t| finite(t.f64()).max(0.0)).collect();
     let count = first(76).map(Tag::i64).unwrap_or(heights.len() as i64).clamp(1, MAX_COLUMNS as i64);
     let auto_height = first(79).map(Tag::i64).unwrap_or(0) != 0;
     let defined = tags.iter().find(|t| t.code == 46).map(|t| finite(t.f64()).max(0.0)).unwrap_or(0.0);
@@ -115,6 +116,7 @@ pub(crate) fn column_tags(t: &MText) -> Vec<Tag> {
         Tag::f(48, t.width),
         Tag::f(49, c.gutter),
     ];
+    v.push(Tag::i(50, heights.len() as i64));
     v.extend(heights.into_iter().map(|h| Tag::f(50, h)));
     v
 }
