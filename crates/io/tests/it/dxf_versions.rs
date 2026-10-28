@@ -159,3 +159,57 @@ fn dwg_default_is_at_least_2004() {
     assert_eq!(cadcraft_dwg::version(&write(&from_r2000, "x.dwg").unwrap()).as_deref(), Some("AC1018"));
     assert_eq!(cadcraft_dwg::version(&write(&sample(), "x.dwg").unwrap()).as_deref(), Some("AC1032"));
 }
+
+/// The CLASS records of a saved file, as (code, value) groups.
+fn class_records(dxf: &str) -> Vec<Vec<(i32, String)>> {
+    let lines: Vec<&str> = dxf.lines().map(str::trim).collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + 1 < lines.len() {
+        if lines[i] == "0" && lines[i + 1] == "CLASS" {
+            let mut rec = Vec::new();
+            let mut j = i + 2;
+            while j + 1 < lines.len() && lines[j] != "0" {
+                rec.push((lines[j].parse::<i32>().unwrap(), lines[j + 1].to_string()));
+                j += 2;
+            }
+            out.push(rec);
+            i = j;
+        } else {
+            i += 2;
+        }
+    }
+    out
+}
+
+/// A DXF 2000 CLASS has no instance count: the DXF Reference adds group 91 in R2004, and ZWCAD
+/// 2025 discards a whole AC1015 file whose CLASS records carry it (#2333).
+#[test]
+fn dxf_2000_classes_have_no_instance_count() {
+    let mut d = Drawing::new_imperial();
+    d.add(&Space::Model, Common::default(), EntityKind::Table(table())).unwrap();
+    let dxf = String::from_utf8(write_with(&d, "t.dxf", &SaveOptions { version: Some(Version::R2000), binary: false }).unwrap()).unwrap();
+    let classes = class_records(&dxf);
+    assert!(classes.iter().any(|c| c.contains(&(1, "TABLESTYLE".into()))), "the drawing has a CLASS to check");
+    for c in &classes {
+        assert!(!c.iter().any(|(code, _)| *code == 91), "DXF 2000 CLASS with group 91: {c:?}");
+    }
+    assert!(
+        !write_dxf(&d).contains(
+            "
+ 91
+"
+        ),
+        "the R2000 default write has no group 91 either"
+    );
+}
+
+/// From R2004 on the instance count is written and counts the records of each class.
+#[test]
+fn dxf_2004_classes_keep_their_instance_count() {
+    let mut d = Drawing::new_imperial();
+    d.add(&Space::Model, Common::default(), EntityKind::Table(table())).unwrap();
+    let dxf = String::from_utf8(write_with(&d, "t.dxf", &SaveOptions { version: Some(Version::R2004), binary: false }).unwrap()).unwrap();
+    let table_style = class_records(&dxf).into_iter().find(|c| c.contains(&(1, "TABLESTYLE".into()))).expect("TABLESTYLE class");
+    assert_eq!(table_style.iter().find(|(code, _)| *code == 91).map(|(_, v)| v.as_str()), Some("1"));
+}

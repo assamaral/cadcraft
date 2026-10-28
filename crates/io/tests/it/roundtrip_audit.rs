@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use cadcraft_doc::{Drawing, EntityKind};
 use cadcraft_dxf::{Tag, records, sections};
-use cadcraft_io::{read_dxf, write_dxf};
+use cadcraft_io::{SaveOptions, Version, read_dxf, write_dxf, write_with};
 
 /// DXF text from lines of `code value` (the value may be empty).
 fn dxf(src: &str) -> String {
@@ -679,10 +679,15 @@ fn xdata(tags: &[Tag], app: &str) -> Vec<(i32, String)> {
 
 /// Read the fixture, save, reopen and save again: both saves.
 fn saves(src: &str) -> (Drawing, Out, Out) {
+    saves_as(src, &write_dxf)
+}
+
+/// [`saves`] with the writer given (a versioned one for what R2000 does not have).
+fn saves_as(src: &str, write: &dyn Fn(&Drawing) -> String) -> (Drawing, Out, Out) {
     let d = read_dxf(src.as_bytes()).expect("read fixture");
-    let first = write_dxf(&d);
+    let first = write(&d);
     let d2 = read_dxf(first.as_bytes()).expect("reopen");
-    let second = write_dxf(&d2);
+    let second = write(&d2);
     let d3 = read_dxf(second.as_bytes()).expect("reopen again");
     (d3, Out::new(&first), Out::new(&second))
 }
@@ -880,7 +885,10 @@ fn saving_twice_writes_the_same_records() {
 
 #[test]
 fn class_records_have_instance_counts_for_generated_and_preserved_records() {
-    let (_, a, b) = saves(&fixture());
+    // Group 91 is an R2004 field; a DXF 2000 CLASS has none (#2333).
+    let r2004 =
+        |d: &Drawing| String::from_utf8(write_with(d, "t.dxf", &SaveOptions { version: Some(Version::R2004), binary: false }).unwrap()).unwrap();
+    let (_, a, b) = saves_as(&fixture(), &r2004);
     for out in [&a, &b] {
         let counts = out.counts();
         for class in out.in_section("CLASSES", "CLASS") {
