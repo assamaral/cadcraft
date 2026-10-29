@@ -3,7 +3,8 @@
 
 use cadcraft_doc::{Common, Drawing, EntityKind, MText, MTextColumnType, MTextColumns, Space};
 use cadcraft_geom::Vec3;
-use cadcraft_io::{read_dxf, write_dxf};
+use cadcraft_dxf::Tag;
+use cadcraft_io::{entity_from_groups, read_dxf, write_dxf};
 
 fn mtext(contents: &str, rotation: f64, columns: Option<MTextColumns>) -> MText {
     MText {
@@ -112,4 +113,19 @@ fn hostile_column_groups_do_not_panic() {
         let bad = dxf.replacen(" 44\r\n", &format!("{extra} 44\r\n"), 1);
         let _ = read_dxf(bad.as_bytes());
     }
+}
+
+#[test]
+fn embedded_groups_do_not_supply_mtext_common_ltscale() {
+    // Without subclass markers, an embedded object (101) reuses 48 for its own data (#2247, test from #2276).
+    let tags = [
+        Tag::s(8, "0"),
+        Tag::f(40, 0.5),
+        Tag::f(41, 12.5),
+        Tag::s(1, "own text"),
+        Tag::s(101, "Embedded Object"),
+        Tag::f(48, 99.0),
+    ];
+    let Some((common, _)) = entity_from_groups("MTEXT", &tags) else { panic!("MTEXT was not read") };
+    assert_eq!(common.ltscale, 1.0, "48 after 101 belongs to the embedded object");
 }
