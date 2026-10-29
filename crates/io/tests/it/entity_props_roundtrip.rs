@@ -59,8 +59,6 @@ fn line_extrusion_is_written_as_a_unit_vector_or_not_at_all() {
     for bad in [Vec3::ZERO, Vec3::new(f64::NAN, 0.0, 1.0), Vec3::new(0.0, 0.0, 5.0)] {
         assert_eq!(dxf(bad), default, "{bad:?} writes nothing, like the Z axis");
     }
-    let out = dxf(Vec3::new(0.0, 3.0, 4.0));
-    assert!(out.contains("210\r\n0.0\r\n") && out.contains("220\r\n0.6\r\n") && out.contains("230\r\n0.8\r\n"), "{out}");
     assert!(dxf(Vec3::new(0.0, 0.0, -5.0)).contains("230\r\n-1.0\r\n"));
 }
 

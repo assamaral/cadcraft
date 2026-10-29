@@ -760,8 +760,10 @@ fn thickness(w: &mut W, e: &Entity) {
 
 /// The extrusion (210) of an entity whose points are world coordinates, when it is not the Z axis.
 fn extrusion(w: &mut W, e: &Entity) {
-    if e.common.extrusion != Vec3::Z {
-        w.p(210, e.common.extrusion);
+    // Zero and NaN normalize to zero: not a direction, so nothing is written.
+    let n = e.common.extrusion.normalized();
+    if n != Vec3::ZERO && n != Vec3::Z {
+        w.p(210, n);
     }
 }
 
