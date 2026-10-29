@@ -241,7 +241,17 @@ fn computed_text_insert(d: &Drawing, t: &Text) -> Vec3 {
 }
 
 pub(super) fn text_tags(w: &mut W, d: &Drawing, t: &Text, attrib: Option<(&Attrib, Version)>, attdef_prompt: Option<&str>) {
-    w.p(10, text_insert(d, t));
+    // An attribute definition with no default value is drawn as its tag: the baseline start
+    // AutoCAD stored is judged against the tag's width, not an empty text's.
+    let shown;
+    let placed = match attrib {
+        Some((a, _)) if attdef_prompt.is_some() && t.value.is_empty() => {
+            shown = Text { value: a.tag.clone(), ..t.clone() };
+            &shown
+        }
+        _ => t,
+    };
+    w.p(10, text_insert(d, placed));
     w.f(40, t.height);
     w.s(1, &t.value);
     if t.rotation != 0.0 {
