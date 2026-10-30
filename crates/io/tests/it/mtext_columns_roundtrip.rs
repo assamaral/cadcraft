@@ -122,3 +122,13 @@ fn embedded_groups_do_not_supply_mtext_common_ltscale() {
     let Some((common, _)) = entity_from_groups("MTEXT", &tags) else { panic!("MTEXT was not read") };
     assert_eq!(common.ltscale, 1.0, "48 after 101 belongs to the embedded object");
 }
+
+#[test]
+fn layer_after_an_entmake_subclass_marker_is_kept() {
+    // An entity list built by hand may put a subclass marker before the layer and have no AcDbEntity
+    // marker at all: the whole list is then the entity's (#2247 review).
+    let tags = [Tag::s(100, "AcDbLine"), Tag::s(8, "Walls"), Tag::i(62, 3), Tag::f(10, 0.0), Tag::f(20, 0.0), Tag::f(11, 1.0), Tag::f(21, 0.0)];
+    let Some((common, _)) = entity_from_groups("LINE", &tags) else { panic!("LINE was not read") };
+    assert_eq!(common.layer, "Walls");
+    assert_eq!(common.color, cadcraft_color::Color::from_aci(3));
+}

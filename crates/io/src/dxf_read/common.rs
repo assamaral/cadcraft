@@ -44,9 +44,12 @@ fn transparency_440(v: i64) -> Transparency {
 }
 
 /// The groups of the AcDbEntity subclass: the record up to the entity's own subclass marker (all
-/// of it in files without markers), or up to an embedded object (101). Later groups reuse the codes: an MTEXT's column width is 48.
+/// of it in files without markers, and in lists with no AcDbEntity marker, whose layer and colour
+/// may follow the entity's marker), or up to an embedded object (101). Later groups reuse the
+/// codes: an MTEXT's column width is 48.
 fn entity_groups(tags: &[Tag]) -> &[Tag] {
-    let end = tags.iter().position(|t| (t.code == 100 && t.str() != "AcDbEntity") || t.code == 101).unwrap_or(tags.len());
+    let marked = tags.iter().any(|t| t.code == 100 && t.str() == "AcDbEntity");
+    let end = tags.iter().position(|t| (marked && t.code == 100 && t.str() != "AcDbEntity") || t.code == 101).unwrap_or(tags.len());
     tags.get(..end).unwrap_or(tags)
 }
 
