@@ -134,6 +134,59 @@ fn heights_written_without_a_count_are_all_kept() {
 }
 
 #[test]
+fn heights_inside_an_application_group_are_not_column_heights() {
+    // An application-defined group (102 {...}) in the record may hold a 50 of its own: it is
+    // neither a height nor the count that tells a legacy record apart (#2247 review).
+    let tags = [
+        Tag::s(8, "0"),
+        Tag::f(40, 0.5),
+        Tag::f(41, 12.5),
+        Tag::s(1, "x"),
+        Tag::i(75, 2),
+        Tag::i(76, 3),
+        Tag::i(78, 0),
+        Tag::i(79, 0),
+        Tag::f(48, 12.5),
+        Tag::f(49, 2.5),
+        Tag::f(50, 5.0),
+        Tag::f(50, 3.0),
+        Tag::f(50, 4.0),
+        Tag::s(102, "{ACME_APP"),
+        Tag::f(50, 8.0),
+        Tag::s(102, "}"),
+    ];
+    let Some((_, EntityKind::MText(t))) = entity_from_groups("MTEXT", &tags) else { panic!("MTEXT was not read") };
+    let c = MTextColumns {
+        kind: MTextColumnType::Dynamic,
+        count: 3,
+        gutter: 2.5,
+        height: 5.0,
+        auto_height: false,
+        heights: vec![5.0, 3.0, 4.0],
+        flow_reversed: false,
+    };
+    assert_eq!(t.columns, Some(c));
+}
+
+#[test]
+fn empty_manual_heights_round_trip() {
+    // A dynamic manual column with no heights stays without heights: no count is written for an
+    // empty list (a lone 50 = 0 would read back as one height of 0) (#2247 review).
+    let c = MTextColumns {
+        kind: MTextColumnType::Dynamic,
+        count: 1,
+        gutter: 0.5,
+        height: 0.0,
+        auto_height: false,
+        heights: Vec::new(),
+        flow_reversed: false,
+    };
+    let (t, dxf) = round_trip(mtext("x", 0.0, Some(c.clone())));
+    assert_eq!(t.columns, Some(c));
+    assert!(!dxf.contains(" 50\r\n0\r\n"), "no height count for an empty list: {dxf}");
+}
+
+#[test]
 fn hostile_column_groups_do_not_panic() {
     let mut d = Drawing::new_metric();
     d.add(&Space::Model, Common::default(), EntityKind::MText(mtext("x", 0.0, None))).unwrap();

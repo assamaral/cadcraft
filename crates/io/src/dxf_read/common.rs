@@ -43,21 +43,25 @@ fn transparency_440(v: i64) -> Transparency {
     }
 }
 
+/// The tags outside application-defined groups (`102 {` to `102 }`, whose codes are the
+/// application's), with their positions in `tags`.
+pub(super) fn outside_app(tags: &[Tag]) -> impl Iterator<Item = (usize, &Tag)> {
+    let mut in_app = false;
+    tags.iter().enumerate().filter(move |(_, t)| {
+        if t.code == 102 {
+            in_app = t.str().starts_with('{');
+        }
+        !in_app && t.code != 102
+    })
+}
+
 /// The groups of the AcDbEntity subclass: the record up to the entity's own subclass marker (all
 /// of it in files without markers, and in lists with no AcDbEntity marker, whose layer and colour
 /// may follow the entity's marker), or up to an embedded object (101). Later groups reuse the
 /// codes: an MTEXT's column width is 48. Markers inside an application-defined group (`102 {`
 /// to `102 }`, whose codes are the application's) do not count.
 fn entity_groups(tags: &[Tag]) -> &[Tag] {
-    let outside_app = || {
-        let mut in_app = false;
-        tags.iter().enumerate().filter(move |(_, t)| {
-            if t.code == 102 {
-                in_app = t.str().starts_with('{');
-            }
-            !in_app && t.code != 102
-        })
-    };
+    let outside_app = || outside_app(tags);
     let marked = outside_app().any(|(_, t)| t.code == 100 && t.str() == "AcDbEntity");
     let end = outside_app().find(|(_, t)| (marked && t.code == 100 && t.str() != "AcDbEntity") || t.code == 101).map_or(tags.len(), |(i, _)| i);
     tags.get(..end).unwrap_or(tags)

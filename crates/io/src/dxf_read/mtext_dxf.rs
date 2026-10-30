@@ -74,15 +74,16 @@ fn finite(v: f64) -> f64 {
 
 /// The columns of an MTEXT, and the column width (group 48) when there are columns.
 pub(crate) fn read_columns(tags: &[Tag]) -> Option<(MTextColumns, f64)> {
-    let tags = own(tags);
+    // An application-defined group in the record may hold any code, 50 included.
+    let tags: Vec<&Tag> = super::common::outside_app(own(tags)).map(|(_, t)| t).collect();
     let start = tags.iter().position(|t| t.code == 75)?;
-    let kind = match tags.get(start).map(Tag::i64) {
+    let kind = match tags.get(start).map(|t| t.i64()) {
         Some(1) => MTextColumnType::Static,
         Some(2) => MTextColumnType::Dynamic,
         _ => return None,
     };
     let cols = tags.get(start..).unwrap_or_default();
-    let first = |code: i32| cols.iter().find(|t| t.code == code);
+    let first = |code: i32| cols.iter().find(|t| t.code == code).copied();
     // The first 50 is the number of heights that follow, unless the file predates the count
     // (CADCraft up to f536bf4 wrote the n heights of group 76 alone).
     let fifties = cols.iter().filter(|t| t.code == 50);
@@ -119,7 +120,10 @@ pub(crate) fn column_tags(t: &MText) -> Vec<Tag> {
         Tag::f(48, t.width),
         Tag::f(49, c.gutter),
     ];
-    v.push(Tag::i(50, heights.len() as i64));
+    // No count for an empty list: a lone 50 = 0 would read back as one height of 0.
+    if !heights.is_empty() {
+        v.push(Tag::i(50, heights.len() as i64));
+    }
     v.extend(heights.into_iter().map(|h| Tag::f(50, h)));
     v
 }
