@@ -56,10 +56,12 @@ fn line_extrusion_is_written_as_a_unit_vector_or_not_at_all() {
         write_dxf(&d)
     };
     let default = dxf(Vec3::Z);
-    for bad in [Vec3::ZERO, Vec3::new(f64::NAN, 0.0, 1.0), Vec3::new(0.0, 0.0, 5.0)] {
+    for bad in [Vec3::ZERO, Vec3::new(f64::NAN, 0.0, 1.0), Vec3::new(f64::INFINITY, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0)] {
         assert_eq!(dxf(bad), default, "{bad:?} writes nothing, like the Z axis");
     }
     assert!(dxf(Vec3::new(0.0, 0.0, -5.0)).contains("230\r\n-1.0\r\n"));
+    // A tiny normal is still a direction: it must not read back as +Z (it would flip a thickness).
+    assert!(dxf(Vec3::new(0.0, 0.0, -1e-10)).contains("230\r\n-1.0\r\n"), "a tiny normal keeps its direction");
 }
 
 #[test]
