@@ -132,3 +132,27 @@ fn layer_after_an_entmake_subclass_marker_is_kept() {
     assert_eq!(common.layer, "Walls");
     assert_eq!(common.color, cadcraft_color::Color::from_aci(3));
 }
+
+#[test]
+fn markers_inside_an_application_group_do_not_end_the_entity_groups() {
+    // An application-defined group (102 {...} before AcDbEntity) may hold any code, 100 and 101
+    // included: the entity's layer and colour come after it (#2247 review).
+    let tags = [
+        Tag::s(5, "A1"),
+        Tag::s(102, "{ACME_APP"),
+        Tag::s(100, "AcmeMarker"),
+        Tag::s(101, "AcmeObject"),
+        Tag::s(102, "}"),
+        Tag::s(100, "AcDbEntity"),
+        Tag::s(8, "Walls"),
+        Tag::i(62, 3),
+        Tag::s(100, "AcDbLine"),
+        Tag::f(10, 0.0),
+        Tag::f(20, 0.0),
+        Tag::f(11, 1.0),
+        Tag::f(21, 0.0),
+    ];
+    let Some((common, _)) = entity_from_groups("LINE", &tags) else { panic!("LINE was not read") };
+    assert_eq!(common.layer, "Walls");
+    assert_eq!(common.color, cadcraft_color::Color::from_aci(3));
+}

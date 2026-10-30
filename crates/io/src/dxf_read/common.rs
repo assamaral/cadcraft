@@ -46,10 +46,20 @@ fn transparency_440(v: i64) -> Transparency {
 /// The groups of the AcDbEntity subclass: the record up to the entity's own subclass marker (all
 /// of it in files without markers, and in lists with no AcDbEntity marker, whose layer and colour
 /// may follow the entity's marker), or up to an embedded object (101). Later groups reuse the
-/// codes: an MTEXT's column width is 48.
+/// codes: an MTEXT's column width is 48. Markers inside an application-defined group (`102 {`
+/// to `102 }`, whose codes are the application's) do not count.
 fn entity_groups(tags: &[Tag]) -> &[Tag] {
-    let marked = tags.iter().any(|t| t.code == 100 && t.str() == "AcDbEntity");
-    let end = tags.iter().position(|t| (marked && t.code == 100 && t.str() != "AcDbEntity") || t.code == 101).unwrap_or(tags.len());
+    let outside_app = || {
+        let mut in_app = false;
+        tags.iter().enumerate().filter(move |(_, t)| {
+            if t.code == 102 {
+                in_app = t.str().starts_with('{');
+            }
+            !in_app && t.code != 102
+        })
+    };
+    let marked = outside_app().any(|(_, t)| t.code == 100 && t.str() == "AcDbEntity");
+    let end = outside_app().find(|(_, t)| (marked && t.code == 100 && t.str() != "AcDbEntity") || t.code == 101).map_or(tags.len(), |(i, _)| i);
     tags.get(..end).unwrap_or(tags)
 }
 
