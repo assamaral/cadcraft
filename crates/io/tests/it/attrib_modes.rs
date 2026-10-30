@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use cadcraft_doc::*;
 use cadcraft_geom::Vec3;
-use cadcraft_io::{read_dxf, write_dxf};
+use cadcraft_io::{SaveOptions, Version, read_dxf, write_dxf, write_with};
 
 fn attrib(tag: &str, modes: AttribModes) -> Attrib {
     let text = Text {
@@ -133,4 +133,11 @@ fn constant_attached_attrib_survives_dxf_and_dwg() {
     assert_eq!(constants(&cadcraft_io::read(&dxf, "x.dxf").expect("read dxf")), [true, false], "dxf");
     let dwg = cadcraft_io::write(&d, "x.dwg").expect("dwg");
     assert_eq!(constants(&cadcraft_io::read(&dwg, "x.dwg").expect("read dwg")), [true, false], "dwg");
+    // Every save version, in both DXF encodings and in DWG.
+    for version in Version::ALL {
+        for (name, binary) in [("x.dxf", false), ("x.dxf", true), ("x.dwg", false)] {
+            let bytes = write_with(&d, name, &SaveOptions { version: Some(version), binary }).expect("write");
+            assert_eq!(constants(&cadcraft_io::read(&bytes, name).expect("read")), [true, false], "{version:?} {name} binary={binary}");
+        }
+    }
 }
