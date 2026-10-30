@@ -16,11 +16,26 @@ fn centred_attdef_with_an_empty_value_keeps_its_insertion_point() {
     let width = cadcraft_fonts::line_width("LONGTAG", 2.5, 1.0);
     let start = 100.0 - width / 2.0;
     assert!(100.0 - start > 3.0, "the point is well over a height from the alignment point");
+    assert_kept(start);
+}
+
+/// A stored point that a tag-width baseline would move is kept too (review of #2466): the check
+/// does not rely on the font's width of the tag, so this one is only 0.5 from the alignment point.
+#[test]
+fn centred_attdef_point_near_the_alignment_point_is_kept() {
+    assert_kept(99.5);
+}
+
+/// A centred, prompted ATTDEF with an empty default value and group 10 at `start`, group 11 at
+/// x = 100 is read from DXF and kept by a write as DXF and as DWG (both versions).
+fn assert_kept(start: f64) {
     let dxf = format!(
         "0\nSECTION\n2\nENTITIES\n0\nATTDEF\n8\n0\n10\n{start}\n20\n5.0\n40\n2.5\n1\n\n7\nSTANDARD\n72\n1\n11\n100.0\n21\n5.0\n3\nprompt\n2\nLONGTAG\n70\n8\n0\nENDSEC\n0\nEOF\n"
     );
     let d = read(dxf.as_bytes(), "t.dxf").unwrap();
     assert!((attdef_x(&d) - start).abs() < 1e-6, "read from DXF");
+    let as_dxf = cadcraft_io::write(&d, "t.dxf").unwrap();
+    assert!((attdef_x(&read(&as_dxf, "t.dxf").unwrap()) - start).abs() < 1e-6, "DXF: insertion point changed");
     for version in [Version::R2000, Version::R2018] {
         let dwg = write_with(&d, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let back = read(&dwg, "t.dwg").unwrap();
