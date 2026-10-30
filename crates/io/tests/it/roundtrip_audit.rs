@@ -901,6 +901,36 @@ fn class_records_have_instance_counts_for_generated_and_preserved_records() {
     }
 }
 
+/// A CLASS kept from an R2004 file (it carries group 91) loses the count when saved as DXF 2000.
+#[test]
+fn kept_class_instance_count_is_dropped_for_dxf_2000() {
+    let src = fixture().replace(
+        "90
+1025
+",
+        "90
+1025
+91
+3
+",
+    );
+    assert!(
+        src.contains(
+            "91
+3
+"
+        ),
+        "the fixture class carries a count"
+    );
+    let r2000 =
+        |d: &Drawing| String::from_utf8(write_with(d, "t.dxf", &SaveOptions { version: Some(Version::R2000), binary: false }).unwrap()).unwrap();
+    let (_, a, b) = saves_as(&src, &r2000);
+    for out in [&a, &b] {
+        assert!(out.in_section("CLASSES", "CLASS").iter().any(|c| s(c, 1) == "ACME_WIDGET"), "the kept class is written");
+        assert!(out.in_section("CLASSES", "CLASS").iter().all(|c| c.iter().all(|t| t.code != 91)), "no CLASS has group 91");
+    }
+}
+
 #[test]
 fn erased_entities_take_their_extension_data_with_them() {
     let mut d = read_dxf(fixture().as_bytes()).expect("read");

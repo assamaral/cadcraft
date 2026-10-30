@@ -1117,17 +1117,17 @@ pub(super) fn tags_for(d: &Drawing, version: Version, target: Version) -> Vec<Ta
     }
     crate::dxf_raw::finish(&mut w.t, d);
     crate::dxf_raw::data_store(&mut w.t, d, target >= Version::R2013);
-    // Group 91 is an R2004 field: ZWCAD 2025 discards a DXF 2000 whose CLASS records carry it (#2333).
-    if target >= Version::R2004 {
-        add_class_instance_counts(&mut w.t);
-    }
+    // Group 91 is an R2004 field: ZWCAD 2025 discards a DXF 2000 whose CLASS records carry it (#2333),
+    // also one kept from a foreign file.
+    class_instance_counts(&mut w.t, target >= Version::R2004);
     mark_xrefs(&mut w.t, d);
     w.t
 }
 
-/// Write DXF Reference group 91 on every CLASS record. Count records after `dxf_raw::finish`
-/// restores foreign classes and objects so every class gets its actual instance count.
-fn add_class_instance_counts(tags: &mut Vec<Tag>) {
+/// Write DXF Reference group 91 on every CLASS record, or (`keep` false, before R2004) remove it.
+/// Count records after `dxf_raw::finish` restores foreign classes and objects so every class gets
+/// its actual instance count.
+fn class_instance_counts(tags: &mut Vec<Tag>, keep: bool) {
     let mut counts: HashMap<String, i64> = HashMap::new();
     for t in tags.iter().filter(|t| t.code == 0) {
         let kind = t.str();
@@ -1142,7 +1142,15 @@ fn add_class_instance_counts(tags: &mut Vec<Tag>) {
             start += 1;
             continue;
         }
-        let end = tags[start + 1..].iter().position(|t| t.code == 0).map_or(tags.len(), |i| start + 1 + i);
+        let mut end = tags[start + 1..].iter().position(|t| t.code == 0).map_or(tags.len(), |i| start + 1 + i);
+        if !keep {
+            while let Some(i) = tags[start + 1..end].iter().position(|t| t.code == 91) {
+                tags.remove(start + 1 + i);
+                end -= 1;
+            }
+            start = end;
+            continue;
+        }
         let name = tags[start + 1..end].iter().find(|t| t.code == 1).map(Tag::str).unwrap_or_default().to_ascii_uppercase();
         let count = counts.get(&name).copied().unwrap_or(0);
         let inserted = if let Some(i) = tags[start + 1..end].iter().position(|t| t.code == 91) {

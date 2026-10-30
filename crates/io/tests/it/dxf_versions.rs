@@ -194,14 +194,9 @@ fn dxf_2000_classes_have_no_instance_count() {
     for c in &classes {
         assert!(!c.iter().any(|(code, _)| *code == 91), "DXF 2000 CLASS with group 91: {c:?}");
     }
-    assert!(
-        !write_dxf(&d).contains(
-            "
- 91
-"
-        ),
-        "the R2000 default write has no group 91 either"
-    );
+    for c in &class_records(&write_dxf(&d)) {
+        assert!(!c.iter().any(|(code, _)| *code == 91), "the R2000 default write has a CLASS with group 91: {c:?}");
+    }
 }
 
 /// From R2004 on the instance count is written and counts the records of each class.
