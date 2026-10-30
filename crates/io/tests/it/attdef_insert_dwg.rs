@@ -13,8 +13,10 @@ fn attdef_x(d: &cadcraft_doc::Drawing) -> f64 {
 #[test]
 fn centred_attdef_with_an_empty_value_keeps_its_insertion_point() {
     // The tag "LONGTAG" at height 2.5, centred on x = 100: its baseline starts half a width left.
+    // The stored point is 1 off that start (within the tolerance), so a write that recomputed
+    // it from the tag would not pass for keeping it.
     let width = cadcraft_fonts::line_width("LONGTAG", 2.5, 1.0);
-    let start = 100.0 - width / 2.0;
+    let start = 100.0 - width / 2.0 - 1.0;
     assert!(100.0 - start > 3.0, "the point is well over a height from the alignment point");
     assert_kept(start);
 }
