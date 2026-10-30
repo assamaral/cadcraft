@@ -62,6 +62,9 @@ fn line_extrusion_is_written_as_a_unit_vector_or_not_at_all() {
     assert!(dxf(Vec3::new(0.0, 0.0, -5.0)).contains("230\r\n-1.0\r\n"));
     // A tiny normal is still a direction: it must not read back as +Z (it would flip a thickness).
     assert!(dxf(Vec3::new(0.0, 0.0, -1e-10)).contains("230\r\n-1.0\r\n"), "a tiny normal keeps its direction");
+    // A huge finite normal's length overflows to infinity: it is a direction all the same.
+    let huge = dxf(Vec3::new(0.0, -1.5e308, 1.5e308));
+    assert!(huge.contains("220\r\n-0.7071067811865475\r\n230\r\n0.7071067811865475\r\n"), "a huge normal keeps its direction:\n{huge}");
 }
 
 #[test]

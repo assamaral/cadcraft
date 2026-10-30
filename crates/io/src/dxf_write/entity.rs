@@ -758,10 +758,13 @@ fn extrusion(w: &mut W, e: &Entity) {
     // Zero and non-finite vectors are not a direction: nothing is written. `Vec3::normalized` would
     // also drop a tiny one (its zero threshold is the drawing tolerance) and turn infinity into NaN.
     let v = e.common.extrusion;
-    let len = v.len();
-    if !v.is_finite() || len == 0.0 {
+    let max = v.x.abs().max(v.y.abs()).max(v.z.abs());
+    if !v.is_finite() || max == 0.0 {
         return;
     }
+    // Scaled by the largest component first: the length of a huge one would overflow to infinity.
+    let v = Vec3::new(v.x / max, v.y / max, v.z / max);
+    let len = v.len();
     let n = Vec3::new(v.x / len, v.y / len, v.z / len);
     if n != Vec3::Z {
         w.p(210, n);
