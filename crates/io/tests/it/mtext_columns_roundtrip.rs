@@ -100,6 +100,40 @@ fn legacy_column_groups_stay_in_the_mtext_subclass() {
 }
 
 #[test]
+fn heights_written_without_a_count_are_all_kept() {
+    // Files written before the height count (CADCraft up to f536bf4) have group 76 = n and n
+    // heights, no count: the first 50 is a height there (#2247 review).
+    let mut d = Drawing::new_metric();
+    d.add(&Space::Model, Common::default(), EntityKind::MText(mtext("x", 0.0, None))).unwrap();
+    let dxf = write_dxf(&d);
+    for (heights, old) in [
+        (vec![7.0], " 75\r\n2\r\n 76\r\n1\r\n 78\r\n0\r\n 79\r\n0\r\n 48\r\n12.5\r\n 49\r\n2.5\r\n 50\r\n7.0\r\n"),
+        (
+            vec![5.0, 3.0, 4.0],
+            " 75\r\n2\r\n 76\r\n3\r\n 78\r\n0\r\n 79\r\n0\r\n 48\r\n12.5\r\n 49\r\n2.5\r\n 50\r\n5.0\r\n 50\r\n3.0\r\n 50\r\n4.0\r\n",
+        ),
+    ] {
+        let back = read_dxf(dxf.replacen(" 44\r\n1.0\r\n", &format!(" 44\r\n1.0\r\n{old}"), 1).as_bytes()).unwrap();
+        let Some(EntityKind::MText(t)) = back.model.iter().map(|e| &e.kind).find(|k| matches!(k, EntityKind::MText(_))) else { panic!("no mtext") };
+        let n = heights.len();
+        let c = MTextColumns {
+            kind: MTextColumnType::Dynamic,
+            count: n as u16,
+            gutter: 2.5,
+            height: heights.iter().copied().fold(0.0, f64::max),
+            auto_height: false,
+            heights: heights.clone(),
+            flow_reversed: false,
+        };
+        assert_eq!(t.columns, Some(c), "{n} heights without a count");
+        // Written back with the count, and still n columns.
+        let out = write_dxf(&back);
+        assert!(out.contains(&format!(" 76\r\n{n}\r\n 78\r\n")), "76 stays {n}: {out}");
+        assert!(out.contains(&format!(" 50\r\n{n}\r\n 50\r\n{:.1}\r\n", heights[0])), "count then the first height: {out}");
+    }
+}
+
+#[test]
 fn hostile_column_groups_do_not_panic() {
     let mut d = Drawing::new_metric();
     d.add(&Space::Model, Common::default(), EntityKind::MText(mtext("x", 0.0, None))).unwrap();
