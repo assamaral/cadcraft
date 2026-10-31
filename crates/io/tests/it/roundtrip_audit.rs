@@ -679,15 +679,10 @@ fn xdata(tags: &[Tag], app: &str) -> Vec<(i32, String)> {
 
 /// Read the fixture, save, reopen and save again: both saves.
 fn saves(src: &str) -> (Drawing, Out, Out) {
-    saves_as(src, &write_dxf)
-}
-
-/// [`saves`] with the writer given (a versioned one for what R2000 does not have).
-fn saves_as(src: &str, write: &dyn Fn(&Drawing) -> String) -> (Drawing, Out, Out) {
     let d = read_dxf(src.as_bytes()).expect("read fixture");
-    let first = write(&d);
+    let first = write_dxf(&d);
     let d2 = read_dxf(first.as_bytes()).expect("reopen");
-    let second = write(&d2);
+    let second = write_dxf(&d2);
     let d3 = read_dxf(second.as_bytes()).expect("reopen again");
     (d3, Out::new(&first), Out::new(&second))
 }
@@ -883,52 +878,50 @@ fn saving_twice_writes_the_same_records() {
     assert_eq!(a.counts(), b.counts());
 }
 
+/// CLASS group 91, the instance count, came with the 2004 format (DXF Reference, CLASSES). A
+/// 2004+ save counts the records of every class, generated and kept; an R2000 save has none,
+/// even for a kept class whose record had one (AutoCAD LT 2026 stops responding on an R2000 file
+/// whose CLASS records carry a 91).
 #[test]
-fn class_records_have_instance_counts_for_generated_and_preserved_records() {
-    // Group 91 is an R2004 field; a DXF 2000 CLASS has none (#2333).
-    let r2004 =
-        |d: &Drawing| String::from_utf8(write_with(d, "t.dxf", &SaveOptions { version: Some(Version::R2004), binary: false }).unwrap()).unwrap();
-    let (_, a, b) = saves_as(&fixture(), &r2004);
+fn class_records_have_instance_counts_from_2004_only() {
+    // The fixture's ACME_OBJECT class as a 2004+ writer has it, with its count.
+    let src = fixture().replacen("ACME_OBJECT\n2\nAcmeObject\n3\nAcmeApp\n90\n0\n", "ACME_OBJECT\n2\nAcmeObject\n3\nAcmeApp\n90\n0\n91\n1\n", 1);
+    assert_ne!(src, fixture());
+    let (d, a, b) = saves(&src);
     for out in [&a, &b] {
-        let counts = out.counts();
         for class in out.in_section("CLASSES", "CLASS") {
-            let name = s(class, 1);
-            let instance_count = class.iter().find(|t| t.code == 91).map(Tag::i64);
-            assert_eq!(instance_count, counts.get(&name).map(|n| *n as i64), "CLASS {name}");
+            let codes: Vec<i32> = class.iter().map(|t| t.code).collect();
+            assert_eq!(codes, [1, 2, 3, 90, 280, 281], "R2000 CLASS {}", s(class, 1));
         }
         assert!(out.in_section("CLASSES", "CLASS").iter().any(|c| s(c, 1) == "ACME_OBJECT"));
-        assert_eq!(counts.get("ACME_OBJECT"), Some(&1));
     }
-}
-
-/// A CLASS kept from an R2004 file (it carries group 91) loses the count when saved as DXF 2000.
-#[test]
-fn kept_class_instance_count_is_dropped_for_dxf_2000() {
-    let src = fixture().replace(
-        "90
-1025
-",
-        "90
-1025
-91
-3
-",
-    );
-    assert!(
-        src.contains(
-            "91
-3
-"
-        ),
-        "the fixture class carries a count"
-    );
-    let r2000 =
-        |d: &Drawing| String::from_utf8(write_with(d, "t.dxf", &SaveOptions { version: Some(Version::R2000), binary: false }).unwrap()).unwrap();
-    let (_, a, b) = saves_as(&src, &r2000);
-    for out in [&a, &b] {
-        assert!(out.in_section("CLASSES", "CLASS").iter().any(|c| s(c, 1) == "ACME_WIDGET"), "the kept class is written");
-        assert!(out.in_section("CLASSES", "CLASS").iter().all(|c| c.iter().all(|t| t.code != 91)), "no CLASS has group 91");
+    // Binary files the same way: none at R2000, the count at 2018.
+    let acme = |version: Version| {
+        let bytes = write_with(&d, "x.dxf", &SaveOptions { version: Some(version), binary: true }).expect("save binary");
+        let tags = cadcraft_dxf::parse(&bytes).expect("parse binary");
+        let class = sections(&tags)
+            .into_iter()
+            .filter(|sec| sec.name == "CLASSES")
+            .flat_map(|sec| records(&sec.tags))
+            .find(|(kind, class)| kind == "CLASS" && s(class, 1) == "ACME_OBJECT")
+            .map(|(_, class)| class)
+            .expect("ACME_OBJECT CLASS");
+        let codes: Vec<i32> = class.iter().map(|t| t.code).collect();
+        (codes, class.iter().find(|t| t.code == 91).map(Tag::i64))
+    };
+    assert_eq!(acme(Version::R2000), (vec![1, 2, 3, 90, 280, 281], None), "binary R2000 ACME_OBJECT CLASS");
+    assert_eq!(acme(Version::R2018), (vec![1, 2, 3, 90, 91, 280, 281], Some(1)), "binary 2018 ACME_OBJECT CLASS");
+    let r2018 = write_with(&d, "x.dxf", &SaveOptions { version: Some(Version::R2018), binary: false }).expect("save 2018");
+    let out = Out::new(std::str::from_utf8(&r2018).expect("UTF-8"));
+    let counts = out.counts();
+    for class in out.in_section("CLASSES", "CLASS") {
+        let name = s(class, 1);
+        let codes: Vec<i32> = class.iter().map(|t| t.code).collect();
+        assert_eq!(codes, [1, 2, 3, 90, 91, 280, 281], "2018 CLASS {name}");
+        let instance_count = class.iter().find(|t| t.code == 91).map(Tag::i64);
+        assert_eq!(instance_count, Some(counts.get(&name).map_or(0, |n| *n as i64)), "CLASS {name}");
     }
+    assert_eq!(counts.get("ACME_OBJECT"), Some(&1));
 }
 
 #[test]

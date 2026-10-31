@@ -1117,17 +1117,27 @@ pub(super) fn tags_for(d: &Drawing, version: Version, target: Version) -> Vec<Ta
     }
     crate::dxf_raw::finish(&mut w.t, d);
     crate::dxf_raw::data_store(&mut w.t, d, target >= Version::R2013);
-    // Group 91 is an R2004 field: ZWCAD 2025 discards a DXF 2000 whose CLASS records carry it (#2333),
-    // also one kept from a foreign file.
-    class_instance_counts(&mut w.t, target >= Version::R2004);
+    add_class_instance_counts(&mut w.t, target);
     mark_xrefs(&mut w.t, d);
     w.t
 }
 
-/// Write DXF Reference group 91 on every CLASS record, or (`keep` false, before R2004) remove it.
-/// Count records after `dxf_raw::finish` restores foreign classes and objects so every class gets
-/// its actual instance count.
-fn class_instance_counts(tags: &mut Vec<Tag>, keep: bool) {
+/// DXF Reference group 91 of CLASS records, the instance count, which came with the 2004 format.
+/// From 2004 every CLASS record gets its actual count, counted after `dxf_raw::finish` restores
+/// foreign classes and objects (AutoCAD rejects a 2004+ file without it, #635). An R2000 file has
+/// none, not even on a class kept from a newer file: AutoCAD LT 2026 stops responding when an
+/// R2000 file's CLASS records carry a 91.
+fn add_class_instance_counts(tags: &mut Vec<Tag>, target: Version) {
+    if target < Version::R2004 {
+        let mut in_class = false;
+        tags.retain(|t| {
+            if t.code == 0 {
+                in_class = t.str() == "CLASS";
+            }
+            !(in_class && t.code == 91)
+        });
+        return;
+    }
     let mut counts: HashMap<String, i64> = HashMap::new();
     for t in tags.iter().filter(|t| t.code == 0) {
         let kind = t.str();
@@ -1136,35 +1146,27 @@ fn class_instance_counts(tags: &mut Vec<Tag>, keep: bool) {
         }
     }
 
-    // One pass: the classes precede the drawing's tags, which a `remove` or `insert` per CLASS
-    // would shift each time.
-    let src = std::mem::take(tags);
-    let mut out = Vec::with_capacity(src.len() + counts.len());
-    let mut it = src.into_iter().peekable();
-    while let Some(t) = it.next() {
-        let class = t.code == 0 && t.str() == "CLASS";
-        out.push(t);
-        if !class {
+    let mut start = 0;
+    while start < tags.len() {
+        if tags.get(start).is_none_or(|t| t.code != 0 || t.str() != "CLASS") {
+            start += 1;
             continue;
         }
-        let mut rec: Vec<Tag> = Vec::new();
-        while let Some(t) = it.next_if(|t| t.code != 0) {
-            rec.push(t);
-        }
-        if !keep {
-            rec.retain(|t| t.code != 91);
+        let end = tags[start + 1..].iter().position(|t| t.code == 0).map_or(tags.len(), |i| start + 1 + i);
+        let name = tags[start + 1..end].iter().find(|t| t.code == 1).map(Tag::str).unwrap_or_default().to_ascii_uppercase();
+        let count = counts.get(&name).copied().unwrap_or(0);
+        let inserted = if let Some(i) = tags[start + 1..end].iter().position(|t| t.code == 91) {
+            tags[start + 1 + i] = Tag::i(91, count);
+            false
+        } else if let Some(i) = tags[start + 1..end].iter().position(|t| t.code == 90) {
+            tags.insert(start + 2 + i, Tag::i(91, count));
+            true
         } else {
-            let name = rec.iter().find(|t| t.code == 1).map(Tag::str).unwrap_or_default().to_ascii_uppercase();
-            let count = counts.get(&name).copied().unwrap_or(0);
-            if let Some(c) = rec.iter_mut().find(|t| t.code == 91) {
-                *c = Tag::i(91, count);
-            } else if let Some(i) = rec.iter().position(|t| t.code == 90) {
-                rec.insert(i + 1, Tag::i(91, count));
-            }
-        }
-        out.extend(rec);
+            false
+        };
+        // Inserting the group shifts the next record's start by one.
+        start = end + usize::from(inserted);
     }
-    *tags = out;
 }
 
 /// Xref blocks (DXF Reference, BLOCK): bit 4 of group 70 and the external drawing's path in
