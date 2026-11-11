@@ -115,6 +115,7 @@ fn missing_marked_ui_literals(language: &str) -> BTreeSet<String> {
         "vpscale",
         "options/dialog",
         "finddlg",
+        "managers",
         "textdlg",
     ];
     let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -464,6 +465,7 @@ fn dialogs_render_in_every_language_and_keep_their_source_ids() {
             ("parameters", "Parameters Manager"),
             ("language", "Interface Language"),
             ("hatch", "Hatch and Gradient"),
+            ("plot", "Printer/plotter"),
             ("options:preferences", "User Preferences"),
         ] {
             let mut app = CadApp::new(Session::new(), Services::default());

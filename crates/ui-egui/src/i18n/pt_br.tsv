@@ -1465,3 +1465,16 @@ menu	View	Exibir
 	Ctrl+Enter to apply	Ctrl+Enter to apply
 	Edit Text	Edit Text
 	The drawing changed. Close the window and open it again.	O desenho mudou. Feche a janela e abra-a novamente.
+	Center the plotted model bounds on the printable area	Centralizar os limites do modelo plotado na área imprimível
+	Distance from the printable area's lower-left corner; values range from −100000 to 100000 mm	Distância ao canto inferior esquerdo da área imprimível; valores de −100000 a 100000 mm
+	Model-space offset placement is not supported by SVG	O deslocamento no espaço do modelo não é suportado em SVG
+	Offsets must be within ±100000 mm	Os deslocamentos devem estar entre ±100000 mm
+	PDF on the paper chosen below	PDF no papel escolhido abaixo
+	Paper units per drawing unit, or a ratio such as 1:50	Unidades de papel por unidade do desenho, ou uma razão como 1:50
+	Pick the window's corners in the drawing	Indique os cantos da janela no desenho
+	Plot objects with their transparency (PLOTTRANSPARENCYOVERRIDE can override it)	Plotar os objetos com sua transparência (PLOTTRANSPARENCYOVERRIDE pode sobrepor)
+	Save these settings in the layout's page setup	Salvar estas configurações na configuração de página do layout
+	The sheet as these settings plot it	A folha como estas configurações a plotam
+	Type something to find	Digite algo para localizar
+	{n} object(s) selected	{n} objeto(s) selecionado(s)
+	{total} match(es) in {objects} object(s)	{total} ocorrência(s) em {objects} objeto(s)

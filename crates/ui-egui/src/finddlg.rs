@@ -83,7 +83,7 @@ fn search(app: &mut CadApp, st: &mut State) {
     if st.find.trim().is_empty() {
         st.rows.clear();
         st.current = None;
-        st.message = crate::i18n::t("Type something to find").to_string();
+        st.message = crate::tl!("Type something to find").to_string();
         return;
     }
     let params = json!({ "find": st.find, "matchCase": st.match_case, "wholeWord": st.whole_word });
@@ -93,7 +93,7 @@ fn search(app: &mut CadApp, st: &mut State) {
             st.current = if st.rows.is_empty() { None } else { Some(0) };
             let total = v.get("total").and_then(Value::as_u64).unwrap_or(0);
             let objects = v.get("matches").and_then(Value::as_array).map_or(0, Vec::len);
-            st.message = format!("{total} match(es) in {objects} object(s)");
+            st.message = crate::tf!("{total} match(es) in {objects} object(s)", total = total, objects = objects);
         }
         Err(e) => {
             st.rows.clear();
@@ -272,7 +272,7 @@ pub fn dialog(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
         let hs: Vec<cadcraft_doc::Handle> = st.rows.iter().filter_map(|r| cadcraft_doc::Handle::parse_hex(&r.handle)).collect();
         if !hs.is_empty() {
             app.session.set_selection(hs);
-            st.message = format!("{} object(s) selected", st.rows.len());
+            st.message = crate::tf!("{n} object(s) selected", n = st.rows.len());
         }
     }
     if let Some(only) = do_replace {
